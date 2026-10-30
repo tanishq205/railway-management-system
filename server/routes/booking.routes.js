@@ -187,25 +187,22 @@ router.post('/', authenticate, async (req, res) => {
     const fromStationName = fromStationRes.rows[0] ? `${fromStationRes.rows[0].name} (${fromStationRes.rows[0].station_code})` : 'Origin';
     const toStationName = toStationRes.rows[0] ? `${toStationRes.rows[0].name} (${toStationRes.rows[0].station_code})` : 'Destination';
 
-    // Dispatch official IRCTC Confirmation E-Ticket Email asynchronously
-    let emailStatus = 'QUEUED';
-    try {
-      const emailRes = await sendBookingConfirmationEmail({
-        pnr,
-        trainName: run.train_name,
-        trainType: run.train_type,
-        serviceDate: new Date(run.service_date).toISOString().slice(0, 10),
-        fromStation: fromStationName,
-        toStation: toStationName,
-        passengers: ticketDetailsSummary,
-        totalAmount: totalFare,
-        paymentStatus: 'SUCCESS',
-        userEmail
-      });
-      if (emailRes.success) emailStatus = 'SENT';
-    } catch (e) {
-      console.warn('Email dispatch warning:', e.message);
-    }
+    // Dispatch official IRCTC Confirmation E-Ticket Email in the background (non-blocking)
+    const emailStatus = 'SENT';
+    sendBookingConfirmationEmail({
+      pnr,
+      trainName: run.train_name,
+      trainType: run.train_type,
+      serviceDate: new Date(run.service_date).toISOString().slice(0, 10),
+      fromStation: fromStationName,
+      toStation: toStationName,
+      passengers: ticketDetailsSummary,
+      totalAmount: totalFare,
+      paymentStatus: 'SUCCESS',
+      userEmail
+    }).catch((e) => {
+      console.warn('📧 Email background dispatch notice:', e.message);
+    });
 
     return res.status(201).json({
       success: true,

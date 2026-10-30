@@ -9,29 +9,29 @@ async function getTransporter() {
   if (transporter) return transporter;
 
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
-    console.log('📧 Configured real SMTP email transporter.');
-  } else {
-    // Development fallback transporter (generates test preview URLs)
-    transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      auth: {
-        user: 'irctc.demo@ethereal.email',
-        pass: 'irctc_demo_pass'
-      }
-    });
+    try {
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587', 10),
+        secure: process.env.SMTP_SECURE === 'true',
+        connectionTimeout: 4000,
+        greetingTimeout: 3000,
+        socketTimeout: 5000,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+      console.log('📧 Configured real SMTP email transporter.');
+      return transporter;
+    } catch (e) {
+      console.warn('⚠️ SMTP Transporter configuration error:', e.message);
+      return null;
+    }
   }
 
-  return transporter;
+  // No external SMTP configured; in-app ticket generation will be used without hanging
+  return null;
 }
 
 /**
@@ -165,22 +165,26 @@ async function sendBookingConfirmationEmail(booking) {
 
     console.log(`📧 [EMAIL SERVICE] Dispatching confirmation email for PNR ${booking.pnr} to ${toEmail}...`);
 
-    // Attempt SMTP dispatch
+    // Attempt SMTP dispatch if configured
     try {
       const trans = await getTransporter();
-      const info = await trans.sendMail({
-        from: '"Indian Railways (IRCTC)" <reservations@irctc.gov.in>',
-        to: toEmail,
-        subject: `🚆 IRCTC Booking Confirmation — PNR: ${booking.pnr} (${booking.trainName})`,
-        html: htmlContent
-      });
-
-      console.log(`✅ [EMAIL SERVICE] Email sent! MessageId: ${info.messageId}`);
-      emailRecord.messageId = info.messageId;
+      if (trans) {
+        const info = await trans.sendMail({
+          from: process.env.SMTP_FROM || '"Indian Railways (IRCTC)" <reservations@irctc.gov.in>',
+          to: toEmail,
+          subject: `🚆 IRCTC Booking Confirmation — PNR: ${booking.pnr} (${booking.trainName})`,
+          html: htmlContent
+        });
+        console.log(`✅ [EMAIL SERVICE] SMTP Email delivered! MessageId: ${info.messageId}`);
+        emailRecord.messageId = info.messageId;
+        emailRecord.note = 'SMTP Email Delivered Successfully';
+      } else {
+        emailRecord.note = 'In-app E-Ticket generated (Instant)';
+        console.log(`ℹ️ [EMAIL SERVICE] In-app E-Ticket generated for PNR ${booking.pnr} (no external SMTP).`);
+      }
     } catch (smtpErr) {
-      // In dev or without external SMTP credentials, log safely and record as simulated success
-      console.log(`ℹ️ [EMAIL SERVICE] SMTP notice: ${smtpErr.message}. Simulated email preview saved successfully for PNR ${booking.pnr}.`);
-      emailRecord.note = 'Simulated Delivery (Live in-app preview available)';
+      console.warn(`ℹ️ [EMAIL SERVICE] SMTP notice: ${smtpErr.message}. Simulated email preview saved successfully for PNR ${booking.pnr}.`);
+      emailRecord.note = `SMTP notice: ${smtpErr.message} (In-app ticket preserved)`;
     }
 
     return { success: true, emailRecord };

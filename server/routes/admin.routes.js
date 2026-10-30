@@ -1,0 +1,121 @@
+const express = require('express');
+const router = express.Router();
+const { pool } = require('../db');
+const { authenticate, requireAdmin } = require('../middleware/auth');
+
+// GET /api/admin/dashboard
+router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const trainCount = await pool.query('SELECT COUNT(*)::int AS total FROM "train"');
+    const stationCount = await pool.query('SELECT COUNT(*)::int AS total FROM "station"');
+    const userCount = await pool.query("SELECT COUNT(*)::int AS total FROM \"user_account\" WHERE \"role\" = 'PASSENGER'");
+
+    const today = new Date().toISOString().slice(0, 10);
+    const todayRuns = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM "train_run" WHERE service_date = $1',
+      [today]
+    );
+
+    const passengerStats = await pool.query(`
+      SELECT 
+        COUNT(*)::int AS "Total_Tickets",
+        SUM(CASE WHEN current_status = 'CONFIRMED' THEN 1 ELSE 0 END)::int AS "Confirmed_Passengers",
+        SUM(CASE WHEN current_status = 'WAITLIST' THEN 1 ELSE 0 END)::int AS "Waitlisted_Passengers",
+        SUM(CASE WHEN current_status = 'CANCELLED' THEN 1 ELSE 0 END)::int AS "Cancelled_Passengers"
+      FROM "ticket_detail"
+    `);
+
+    const revenueStats = await pool.query(`
+      SELECT 
+        COALESCE(SUM(amount), 0.00)::numeric AS "Total_Revenue",
+        COUNT(transaction_id)::int AS "Total_Successful_Transactions"
+      FROM "payment"
+      WHERE payment_status = 'SUCCESS'
+    `);
+
+    const occupancyStats = await pool.query(`
+      SELECT 
+        COUNT(sa.allocation_id)::int AS "Total_Allocations",
+        SUM(CASE WHEN sa.booking_status = 'BOOKED' THEN 1 ELSE 0 END)::int AS "Booked_Seats",
+        SUM(CASE WHEN sa.booking_status = 'AVAILABLE' THEN 1 ELSE 0 END)::int AS "Available_Seats",
+        SUM(CASE WHEN sa.booking_status = 'BLOCKED' THEN 1 ELSE 0 END)::int AS "Blocked_Seats",
+        ROUND((SUM(CASE WHEN sa.booking_status = 'BOOKED' THEN 1 ELSE 0 END) * 100.0) / 
+              NULLIF(COUNT(sa.allocation_id), 0), 2)::numeric AS "Overall_Occupancy_Pct"
+      FROM "seat_allocation" sa
+    `);
+
+    const recentBookings = await pool.query(`
+      SELECT 
+        th.pnr AS "PNR",
+        th.booking_date AS "Booking_Date",
+        th.total_amount AS "Total_Amount",
+        ua.email AS "Booker_Email",
+        t.name AS "Train_Name",
+        TO_CHAR(tr.service_date, 'YYYY-MM-DD') AS "Service_Date",
+        COUNT(td.detail_id)::int AS "Passenger_Count",
+        COALESCE(p.payment_status, 'PENDING') AS "Payment_Status"
+      FROM "ticket_header" th
+      JOIN "user_account" ua ON th.user_id = ua.user_id
+      JOIN "train_run" tr ON th.run_id = tr.run_id
+      JOIN "train" t ON tr.train_id = t.train_id
+      LEFT JOIN "ticket_detail" td ON th.pnr = td.pnr
+      LEFT JOIN (
+        SELECT p1.pnr, p1.payment_status FROM "payment" p1
+        WHERE (p1.pnr, p1.transaction_id) IN (SELECT pnr, MAX(transaction_id) FROM "payment" GROUP BY pnr)
+      ) p ON th.pnr = p.pnr
+      GROUP BY th.pnr, th.booking_date, th.total_amount, ua.email, t.name, tr.service_date, p.payment_status
+      ORDER BY th.booking_date DESC
+      LIMIT 8
+    `);
+
+    return res.json({
+      success: true,
+      data: {
+        totalTrains: trainCount.rows[0].total,
+        totalStations: stationCount.rows[0].total,
+        totalUsers: userCount.rows[0].total,
+        todayRuns: todayRuns.rows[0].total,
+        confirmedPassengers: passengerStats.rows[0].Confirmed_Passengers || 0,
+        waitlistedPassengers: passengerStats.rows[0].Waitlisted_Passengers || 0,
+        cancelledPassengers: passengerStats.rows[0].Cancelled_Passengers || 0,
+        totalRevenue: parseFloat(revenueStats.rows[0].Total_Revenue || 0),
+        successfulTransactions: revenueStats.rows[0].Total_Successful_Transactions || 0,
+        occupancyPercentage: parseFloat(occupancyStats.rows[0].Overall_Occupancy_Pct || 0),
+        seatBreakdown: {
+          total: occupancyStats.rows[0].Total_Allocations || 0,
+          booked: occupancyStats.rows[0].Booked_Seats || 0,
+          available: occupancyStats.rows[0].Available_Seats || 0,
+          blocked: occupancyStats.rows[0].Blocked_Seats || 0
+        },
+        recentBookings: recentBookings.rows
+      }
+    });
+  } catch (error) {
+    console.error('Admin dashboard error:', error);
+    return res.status(500).json({ success: false, message: 'Database error fetching dashboard metrics: ' + error.message });
+  }
+});
+
+// GET /api/admin/reports/occupancy
+router.get('/reports/occupancy', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM vw_train_occupancy ORDER BY "service_date" DESC, "run_id" DESC');
+    return res.json({ success: true, count: result.rows.length, reports: result.rows });
+  } catch (error) {
+    console.error('Occupancy report error:', error);
+    return res.status(500).json({ success: false, message: 'Database error: ' + error.message });
+  }
+});
+
+// GET /api/admin/reports/revenue
+router.get('/reports/revenue', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM vw_revenue_summary ORDER BY "service_date" DESC, "total_revenue" DESC');
+    return res.json({ success: true, count: result.rows.length, reports: result.rows });
+  } catch (error) {
+    console.error('Revenue report error:', error);
+    return res.status(500).json({ success: false, message: 'Database error: ' + error.message });
+  }
+});
+
+module.exports = router;

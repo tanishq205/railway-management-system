@@ -1,0 +1,14 @@
+{
+  "name": "railway-management-system",
+  "version": "1.0.0",
+  "description": "Complete Railway Management System — College DBMS Project",
+  "scripts": {
+    "start": "npm --prefix server start",
+    "server": "npm --prefix server start",
+    "server:dev": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "client:build": "npm --prefix client run build",
+    "db:init": "npm --prefix server run db:init",
+    "db:seed": "npm --prefix server run db:seed"
+  }
+}

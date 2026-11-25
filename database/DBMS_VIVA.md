@@ -53,13 +53,19 @@ The schema consists of exactly **13 normalized tables** categorized into three t
 ## 3. PostgreSQL PL/pgSQL Triggers & Views
 
 ### Triggers (Functions returning TRIGGER)
-1. **`trg_seat_allocation_audit`**: Fires `AFTER UPDATE ON Seat_Allocation`. If `Booking_Status` changes, executes PL/pgSQL function `fn_seat_allocation_audit()` to log an entry in `Audit_Log`.
-2. **`trg_payment_audit`**: Fires `AFTER INSERT ON Payment`. Executes `fn_payment_audit()` to log payment statuses (`SUCCESS`, `FAILED`, `REFUNDED`).
+1. **`trg_seat_allocation_audit`**: Fires `AFTER UPDATE ON Seat_Allocation`. If `Booking_Status` changes, executes `fn_seat_allocation_audit()` to log `'SEAT_STATUS_<OLD>_TO_<NEW>'` in `Audit_Log`.
+2. **`trg_payment_audit`**: Fires `AFTER INSERT ON Payment`. Executes `fn_payment_audit()` to log `'PAYMENT_<STATUS>_<PNR>'` in `Audit_Log`.
+3. **`trg_sync_seat_condition`**: Fires `AFTER UPDATE OF Physical_Condition ON Seat`. Automatically synchronizes `Seat_Allocation` (`AVAILABLE` &harr; `BLOCKED`) and logs maintenance events in `Audit_Log`.
+4. **`trg_prevent_repair_seat_booking`**: Fires `BEFORE INSERT OR UPDATE OF Booking_Status ON Seat_Allocation`. Raises an exception if a seat marked `UNDER_REPAIR` is booked.
+5. **`trg_train_run_status_audit`**: Fires `AFTER UPDATE OF Run_Status ON Train_Run`. Logs `'RUN_STATUS_<OLD>_TO_<NEW>'` into `Audit_Log`.
+6. **`trg_validate_train_stations`**: Fires `BEFORE INSERT OR UPDATE OF Source_ID, Destination_ID ON Train`. Prevents creating a train with identical source and destination stations.
 
 ### Database Views
 1. `vw_booking_details`: Consolidates multi-table joins for fast PNR resolution and passenger history.
-2. `vw_train_occupancy`: Real-time calculation of capacity, booked seats, and occupancy percentages per train run.
-3. `vw_revenue_summary`: Aggregates successful transaction amounts by train service and date.
+2. `vw_train_occupancy`: Real-time calculation of capacity, booked, available, blocked seats, and occupancy percentages per train run.
+3. `vw_revenue_summary`: Aggregates gross, refunded, and net revenue by train service and date.
+4. `vw_route_timetable`: Ordered train route stops with station codes, cities, arrival, and departure times.
+5. `vw_audit_trail`: Joins `Audit_Log` with `User_Account` for enriched security and trigger event auditing.
 
 ---
 

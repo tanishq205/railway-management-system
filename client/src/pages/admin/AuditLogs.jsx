@@ -10,6 +10,7 @@ export default function AuditLogs() {
 
   const [actionFilter, setActionFilter] = useState('');
   const [tableFilter, setTableFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -19,6 +20,7 @@ export default function AuditLogs() {
       const params = [];
       if (actionFilter) params.push(`action=${encodeURIComponent(actionFilter)}`);
       if (tableFilter) params.push(`table=${encodeURIComponent(tableFilter)}`);
+      if (sourceFilter) params.push(`source=${encodeURIComponent(sourceFilter)}`);
       if (params.length > 0) url += `?${params.join('&')}`;
 
       const res = await authFetch(url);
@@ -48,7 +50,7 @@ export default function AuditLogs() {
         <div>
           <h1 style={{ fontSize: '1.75rem', color: 'var(--navy-900)' }}>System Audit Trail & Security Logs</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Immutable event audit records generated automatically via transactions and MySQL database triggers.
+            Immutable event audit records generated automatically via transactions and PostgreSQL PL/pgSQL database triggers.
           </p>
         </div>
         <button onClick={fetchLogs} className="btn btn-outline btn-sm">
@@ -82,13 +84,28 @@ export default function AuditLogs() {
             >
               <option value="">All Tables</option>
               <option value="Seat_Allocation">Seat_Allocation</option>
+              <option value="Seat">Seat</option>
               <option value="Ticket_Header">Ticket_Header</option>
               <option value="Ticket_Detail">Ticket_Detail</option>
               <option value="Payment">Payment</option>
               <option value="Train_Run">Train_Run</option>
               <option value="Train">Train</option>
+              <option value="Route_Schedule">Route_Schedule</option>
               <option value="Station">Station</option>
               <option value="User_Account">User_Account</option>
+            </select>
+          </div>
+
+          <div style={{ minWidth: '170px' }}>
+            <label className="form-label">Event Source</label>
+            <select
+              className="form-select"
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+            >
+              <option value="">All Sources</option>
+              <option value="triggers">PL/pgSQL Triggers Only</option>
+              <option value="users">API / User Actions Only</option>
             </select>
           </div>
 
@@ -98,7 +115,7 @@ export default function AuditLogs() {
             </button>
             <button
               type="button"
-              onClick={() => { setActionFilter(''); setTableFilter(''); setTimeout(fetchLogs, 50); }}
+              onClick={() => { setActionFilter(''); setTableFilter(''); setSourceFilter(''); setTimeout(fetchLogs, 50); }}
               className="btn btn-outline"
             >
               Reset

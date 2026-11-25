@@ -8,6 +8,7 @@ import {
   CalendarClock, 
   BookOpenCheck, 
   ScrollText, 
+  Database,
   Terminal 
 } from 'lucide-react';
 
@@ -19,6 +20,7 @@ export default function AdminSidebar() {
     { to: '/admin/coaches', label: 'Coaches & Seat Repair', icon: <Armchair size={18} /> },
     { to: '/admin/runs', label: 'Train Runs & Delays', icon: <CalendarClock size={18} /> },
     { to: '/admin/bookings', label: 'Bookings & Waitlist', icon: <BookOpenCheck size={18} /> },
+    { to: '/admin/views-triggers', label: 'Views & Triggers', icon: <Database size={18} /> },
     { to: '/admin/audit-logs', label: 'System Audit Logs', icon: <ScrollText size={18} /> },
     { to: '/admin/queries', label: 'DBMS Viva SQL Guide', icon: <Terminal size={18} /> }
   ];

@@ -165,8 +165,8 @@ DELETE FROM Station WHERE Station_Code = 'TESTSTN';`
     id: 10,
     concept: '10. ACID Transaction & Pessimistic Locking',
     title: 'Transactional Seat Booking with SELECT ... FOR UPDATE',
-    description: 'InnoDB exclusive row locks to prevent race conditions and double-booking during concurrent ticket reservations.',
-    sql: `START TRANSACTION;
+    description: 'PostgreSQL MVCC exclusive row locks to prevent race conditions and double-booking during concurrent ticket reservations.',
+    sql: `BEGIN;
 
 -- Lock available seat in Run_ID = 1
 SELECT Allocation_ID, Run_ID, Seat_ID, Booking_Status 
@@ -182,45 +182,48 @@ WHERE Allocation_ID = 3;
 
 -- Insert audit entry
 INSERT INTO Audit_Log (Action_Type, Table_Affected, Created_At, User_ID)
-VALUES ('TRANSACTION_DEMO_BOOKING', 'Seat_Allocation', NOW(), 1);
+VALUES ('TRANSACTION_DEMO_BOOKING', 'Seat_Allocation', CURRENT_TIMESTAMP, 1);
 
 COMMIT;`
   },
   {
     id: 11,
-    concept: '11. Database Triggers',
-    title: 'Automated Audit Logging Trigger',
-    description: 'Demonstrates MySQL trigger trg_seat_allocation_audit automatically populating Audit_Log when seat booking status changes.',
+    concept: '11. Database Triggers (PL/pgSQL)',
+    title: 'Automated Audit & Integrity Triggers',
+    description: 'Demonstrates PostgreSQL triggers (trg_seat_allocation_audit, trg_payment_audit, trg_sync_seat_condition, trg_prevent_repair_seat_booking, trg_train_run_status_audit, trg_validate_train_stations).',
     sql: `-- Updating seat allocation fires trigger trg_seat_allocation_audit:
 UPDATE Seat_Allocation
 SET Booking_Status = 'AVAILABLE'
 WHERE Allocation_ID = 3;
 
--- Query the auto-inserted audit record:
-SELECT * FROM Audit_Log 
-WHERE Table_Affected = 'Seat_Allocation'
+-- Updating Seat Physical_Condition fires trg_sync_seat_condition:
+UPDATE Seat
+SET Physical_Condition = 'UNDER_REPAIR'
+WHERE Seat_ID = 1;
+
+-- Query the auto-inserted trigger audit records:
+SELECT * FROM vw_audit_trail
+WHERE User_ID IS NULL
 ORDER BY Created_At DESC
-LIMIT 5;`
+LIMIT 10;`
   },
   {
     id: 12,
     concept: '12. SQL Views',
-    title: 'Querying Predefined vw_booking_details View',
-    description: 'Encapsulates complex joins for fast PNR resolution and reporting.',
-    sql: `SELECT 
-    PNR,
-    Booker_Email,
-    Train_Name,
-    Service_Date,
-    From_Station_Code,
-    To_Station_Code,
-    Passenger_Name,
-    Coach_Type,
-    Seat_Number,
-    Ticket_Status,
-    Payment_Status
+    title: 'Querying Predefined PostgreSQL Views',
+    description: 'Encapsulates complex multi-table joins and aggregations across vw_booking_details, vw_train_occupancy, vw_revenue_summary, vw_route_timetable, and vw_audit_trail.',
+    sql: `-- 1. PNR Lookup View
+SELECT 
+    PNR, Booker_Email, Train_Name, Service_Date,
+    From_Station_Code, To_Station_Code,
+    Passenger_Name, Coach_Type, Seat_Number,
+    Ticket_Status, Payment_Status
 FROM vw_booking_details
-WHERE PNR = 'PNR8492013';`
+WHERE PNR = 'PNR8492013';
+
+-- 2. Live Train Occupancy & Revenue Views
+SELECT * FROM vw_train_occupancy ORDER BY Service_Date DESC;
+SELECT * FROM vw_revenue_summary ORDER BY Net_Revenue DESC;`
   },
   {
     id: 13,

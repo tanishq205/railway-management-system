@@ -9,6 +9,7 @@
     "client": "npm --prefix client run dev",
     "client:build": "npm --prefix client run build",
     "db:init": "npm --prefix server run db:init",
-    "db:seed": "npm --prefix server run db:seed"
+    "db:seed": "npm --prefix server run db:seed",
+    "db:views-triggers": "npm --prefix server run db:views-triggers"
   }
 }

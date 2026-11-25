@@ -99,7 +99,22 @@ router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
 // GET /api/admin/reports/occupancy
 router.get('/reports/occupancy', authenticate, requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM vw_train_occupancy ORDER BY "service_date" DESC, "run_id" DESC');
+    const result = await pool.query(`
+      SELECT
+        "run_id",
+        TO_CHAR("service_date", 'YYYY-MM-DD') AS "service_date",
+        "run_status",
+        "train_id",
+        "train_name",
+        "train_type",
+        "total_seats"::int,
+        "booked_seats"::int,
+        "available_seats"::int,
+        "blocked_seats"::int,
+        COALESCE("occupancy_percentage", 0)::numeric AS "occupancy_percentage"
+      FROM vw_train_occupancy
+      ORDER BY "service_date" DESC, "run_id" DESC
+    `);
     return res.json({ success: true, count: result.rows.length, reports: result.rows });
   } catch (error) {
     console.error('Occupancy report error:', error);
@@ -110,11 +125,87 @@ router.get('/reports/occupancy', authenticate, requireAdmin, async (req, res) =>
 // GET /api/admin/reports/revenue
 router.get('/reports/revenue', authenticate, requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM vw_revenue_summary ORDER BY "service_date" DESC, "total_revenue" DESC');
+    const result = await pool.query(`
+      SELECT
+        "train_id",
+        "train_name",
+        "train_type",
+        TO_CHAR("service_date", 'YYYY-MM-DD') AS "service_date",
+        "confirmed_bookings_count"::int,
+        "total_revenue"::numeric,
+        "refunded_amount"::numeric,
+        "net_revenue"::numeric
+      FROM vw_revenue_summary
+      ORDER BY "service_date" DESC, "total_revenue" DESC
+    `);
     return res.json({ success: true, count: result.rows.length, reports: result.rows });
   } catch (error) {
     console.error('Revenue report error:', error);
     return res.status(500).json({ success: false, message: 'Database error: ' + error.message });
+  }
+});
+
+// GET /api/admin/reports/timetable
+router.get('/reports/timetable', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM vw_route_timetable');
+    return res.json({ success: true, count: result.rows.length, stops: result.rows });
+  } catch (error) {
+    console.error('Timetable view error:', error);
+    return res.status(500).json({ success: false, message: 'Database error: ' + error.message });
+  }
+});
+
+// GET /api/admin/db-objects
+// Live PostgreSQL catalog inspection of deployed Views, Triggers, and recent Trigger Audit Logs
+router.get('/db-objects', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const viewsRes = await pool.query(`
+      SELECT
+        v.viewname AS name,
+        pg_get_viewdef(c.oid, true) AS definition
+      FROM pg_views v
+      JOIN pg_class c ON c.relname = v.viewname
+      JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = v.schemaname
+      WHERE v.schemaname = 'public'
+      ORDER BY v.viewname ASC
+    `);
+
+    const triggersRes = await pool.query(`
+      SELECT
+        t.tgname AS trigger_name,
+        cls.relname AS table_name,
+        p.proname AS function_name,
+        pg_get_triggerdef(t.oid, true) AS definition
+      FROM pg_trigger t
+      JOIN pg_class cls ON t.tgrelid = cls.oid
+      JOIN pg_namespace n ON cls.relnamespace = n.oid
+      JOIN pg_proc p ON t.tgfoid = p.oid
+      WHERE NOT t.tgisinternal AND n.nspname = 'public'
+      ORDER BY cls.relname ASC, t.tgname ASC
+    `);
+
+    const triggerLogsRes = await pool.query(`
+      SELECT
+        log_id AS "Log_ID",
+        action_type AS "Action_Type",
+        table_affected AS "Table_Affected",
+        created_at AS "Created_At"
+      FROM "audit_log"
+      WHERE "user_id" IS NULL
+      ORDER BY "created_at" DESC
+      LIMIT 15
+    `);
+
+    return res.json({
+      success: true,
+      views: viewsRes.rows,
+      triggers: triggersRes.rows,
+      recentTriggerLogs: triggerLogsRes.rows
+    });
+  } catch (error) {
+    console.error('Inspect DB objects error:', error);
+    return res.status(500).json({ success: false, message: 'Database error inspecting views/triggers: ' + error.message });
   }
 });
 

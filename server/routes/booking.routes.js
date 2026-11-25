@@ -240,8 +240,30 @@ router.get('/email/:pnr', async (req, res) => {
       return res.json({ success: true, email: cached });
     }
 
-    // Generate on the fly from database
-    const bookingRes = await pool.query('SELECT * FROM vw_booking_details WHERE "pnr" = $1', [pnr]);
+    // Generate on the fly from database view `vw_booking_details`
+    const bookingRes = await pool.query(
+      `SELECT
+        "pnr" AS "PNR",
+        "booking_date" AS "Booking_Date",
+        "total_amount" AS "Total_Amount",
+        "booker_email" AS "Booker_Email",
+        TO_CHAR("service_date", 'YYYY-MM-DD') AS "Service_Date",
+        "train_name" AS "Train_Name",
+        "train_type" AS "Train_Type",
+        "from_station_code" AS "From_Station_Code",
+        "from_station_name" AS "From_Station_Name",
+        "to_station_code" AS "To_Station_Code",
+        "to_station_name" AS "To_Station_Name",
+        "passenger_name" AS "Passenger_Name",
+        "passenger_age" AS "Passenger_Age",
+        "passenger_gender" AS "Passenger_Gender",
+        "ticket_status" AS "Ticket_Status",
+        "coach_type" AS "Coach_Type",
+        "seat_number" AS "Seat_Number",
+        "payment_status" AS "Payment_Status"
+       FROM vw_booking_details WHERE "pnr" = $1`,
+      [pnr]
+    );
     if (bookingRes.rows.length === 0) {
       return res.status(404).json({ success: false, message: `No booking found for PNR '${pnr}'.` });
     }

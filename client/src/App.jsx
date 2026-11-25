@@ -16,6 +16,7 @@ import TrainManager from './pages/admin/TrainManager';
 import CoachSeatManager from './pages/admin/CoachSeatManager';
 import RunManager from './pages/admin/RunManager';
 import BookingsManager from './pages/admin/BookingsManager';
+import ViewsTriggersManager from './pages/admin/ViewsTriggersManager';
 import AuditLogs from './pages/admin/AuditLogs';
 import VivaQueries from './pages/admin/VivaQueries';
 
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="coaches" element={<CoachSeatManager />} />
             <Route path="runs" element={<RunManager />} />
             <Route path="bookings" element={<BookingsManager />} />
+            <Route path="views-triggers" element={<ViewsTriggersManager />} />
             <Route path="audit-logs" element={<AuditLogs />} />
             <Route path="queries" element={<VivaQueries />} />
           </Route>
@@ -60,7 +62,7 @@ export default function App() {
           <div>
             <strong style={{ color: '#fff' }}>IR-RailOps</strong> — Railway Management System (DBMS College Project)
             <div style={{ fontSize: '0.75rem', marginTop: '2px' }}>
-              Built with Node.js, Express, React, Vite, and MySQL 8.0 with InnoDB ACID transactions.
+              Built with Node.js, Express, React, Vite, and Supabase PostgreSQL with ACID transactions, Views &amp; PL/pgSQL Triggers.
             </div>
           </div>
           <div style={{ fontSize: '0.8rem', color: '#64748b' }}>

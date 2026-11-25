@@ -5,7 +5,7 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 // GET /api/audit-logs (Admin only)
 router.get('/', authenticate, requireAdmin, async (req, res) => {
-  const { action, table, limit } = req.query;
+  const { action, table, limit, source } = req.query;
 
   try {
     let whereClauses = [];
@@ -19,6 +19,12 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
     if (table) {
       params.push(table.trim());
       whereClauses.push(`al.table_affected = $${params.length}`);
+    }
+
+    if (source === 'triggers') {
+      whereClauses.push(`al.user_id IS NULL`);
+    } else if (source === 'users') {
+      whereClauses.push(`al.user_id IS NOT NULL`);
     }
 
     const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';

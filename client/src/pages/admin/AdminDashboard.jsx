@@ -14,6 +14,7 @@ import {
   Armchair,
   BookOpenCheck,
   ScrollText,
+  Database,
   Terminal
 } from 'lucide-react';
 
@@ -317,6 +318,10 @@ export default function AdminDashboard() {
             <Link to="/admin/coaches" className="btn btn-outline" style={{ padding: '14px' }}>
               <Armchair size={18} />
               <span>Seat Maintenance Repair</span>
+            </Link>
+            <Link to="/admin/views-triggers" className="btn btn-outline" style={{ padding: '14px' }}>
+              <Database size={18} />
+              <span>Views &amp; Triggers</span>
             </Link>
             <Link to="/admin/audit-logs" className="btn btn-outline" style={{ padding: '14px' }}>
               <ScrollText size={18} />
